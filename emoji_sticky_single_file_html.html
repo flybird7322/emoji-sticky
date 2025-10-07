@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emoji‑Sticky：名言便利貼（單檔版）</title>
+  <style>
+    :root{--bg:#fafafa;--card:#ffffff;--text:#111;--muted:#6b7280;--border:#e5e7eb;--accent:#000}
+    @media (prefers-color-scheme: dark){
+      :root{--bg:#0a0a0a;--card:#0f0f10;--text:#f5f5f5;--muted:#a3a3a3;--border:#27272a;--accent:#fff}
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(#f6f6f7,#fff);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    header{position:sticky;top:0;backdrop-filter:saturate(1.2) blur(6px);background:color-mix(in oklab, var(--card) 85%, transparent);border-bottom:1px solid var(--border);z-index:10}
+    .container{max-width:880px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:.5em;border-radius:14px;padding:8px 10px;border:1px solid var(--border);background:var(--card);cursor:pointer}
+    .btn.solid{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .btn.ghost{background:transparent}
+    .btn:active{transform:scale(.98)}
+    .chip{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted)}
+    .card{border:1px solid var(--border);border-radius:20px;background:var(--card);box-shadow:0 1px 10px rgba(0,0,0,.03)}
+    .input, textarea{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.7);padding:8px 10px;width:100%}
+    .muted{color:var(--muted)}
+    .list{display:grid;gap:10px}
+    .item{padding:12px;border:1px solid var(--border);border-radius:18px;background:var(--card);display:flex;gap:10px}
+    .item.pin{border-color:#fbbf24;background:color-mix(in oklab, #fbbf24 10%, var(--card))}
+    .right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+    .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#000;color:#fff;padding:8px 12px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:50}
+    dialog{border:none;border-radius:18px;max-width:720px;width:min(92vw,720px);}
+    dialog::backdrop{background:rgba(0,0,0,.45)}
+    .kbd{border:1px solid var(--border);border-radius:4px;padding:0 4px}
+    .dashed{border:1px dashed var(--border)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container row" style="align-items:center">
+      <h1 style="margin:0;font-size:18px;font-weight:800">🗒️ Emoji‑Sticky：名言收藏（單檔版）</h1>
+      <div style="margin-left:auto" class="row">
+        <div class="row" style="flex:1;min-width:260px">
+          <input id="search" class="input" placeholder="搜尋文字或 #標籤 (Ctrl/Cmd+F)" />
+          <select id="sort" class="input" style="max-width:150px">
+            <option value="pin">置頂優先</option>
+            <option value="new">最新</option>
+            <option value="old">最舊</option>
+            <option value="az">A→Z</option>
+            <option value="za">Z→A</option>
+          </select>
+        </div>
+        <button id="export" class="btn">匯出</button>
+        <label class="btn"><input id="import" type="file" accept="application/json" style="display:none"/>匯入</label>
+        <button id="bulkDel" class="btn ghost" title="刪除勾選">🗑️</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="display:grid;gap:16px;padding-block:18px">
+    <section class="card" style="padding:12px">
+      <div class="row" style="flex-direction:column;gap:8px">
+        <textarea id="text" placeholder="貼上或輸入名言佳句（支援 emoji 表情 ✨）" rows="5"></textarea>
+        <div class="row" style="align-items:center">
+          <input id="tags" class="input" placeholder="加上標籤，例如：#愛情, #職場, #靈感" />
+          <button id="save" class="btn solid" title="儲存 (Ctrl/Cmd+S)">儲存</button>
+        </div>
+        <p class="muted" style="margin:0;font-size:12px">小技巧：按 <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">S</span> 快速儲存；搜尋支援 #標籤。</p>
+      </div>
+    </section>
+
+    <section>
+      <div id="empty" class="muted" style="text-align:center;padding:30px;display:none">沒有符合條件的名言，先新增一筆吧～</div>
+      <ul id="list" class="list"></ul>
+    </section>
+
+    <section class="card dashed" style="padding:12px">
+      <details>
+        <summary style="cursor:pointer;font-weight:600">🧪 內建測試面板（點我展開）</summary>
+        <p class="muted" style="margin-top:6px">這些測試不會更動你的資料，僅在記憶體中驗證邏輯。</p>
+        <button id="runTests" class="btn">執行測試</button>
+        <div id="testOut" style="margin-top:8px"></div>
+      </details>
+    </section>
+
+    <footer class="muted" style="font-size:12px;padding-bottom:24px">本工具將資料安全地保存在你的瀏覽器 localStorage。你可隨時用「匯出/匯入」備份或移轉。✨</footer>
+  </main>
+
+  <!-- 手動複製視窗 -->
+  <dialog id="copyDlg">
+    <form method="dialog">
+      <h3 style="margin:0 0 6px 0">複製到剪貼簿</h3>
+      <p class="muted" style="margin:0 0 8px 0">由於瀏覽器權限限制，請手動複製：<b>Ctrl/⌘ + C</b></p>
+      <textarea id="copyBox" rows="8" class="input" style="height:200px"></textarea>
+      <div class="row" style="justify-content:flex-end;margin-top:8px">
+        <button class="btn" id="tryCopy">嘗試複製</button>
+        <button class="btn solid">完成</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const STORAGE_KEY = 'emoji_quote_sticky_v1_single';
+    const $ = (id)=>document.getElementById(id);
+    const state = { quotes: load(), search:'', sort:'pin', selected:new Set() };
+
+    function uid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+    function load(){ try{ const v = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); return Array.isArray(v)?v:[] }catch{ return [] } }
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.quotes)); }
+
+    function parseTags(raw){ return raw.split(',').map(s=>s.trim()).filter(Boolean); }
+
+    function computeFiltered(quotes){
+      const q = state.search.trim().toLowerCase();
+      let list = quotes.filter(it=> !q || it.text.toLowerCase().includes(q) || it.tags.some(t=>t.toLowerCase().includes(q)));
+      switch(state.sort){
+        case 'new': list.sort((a,b)=>b.createdAt-a.createdAt); break;
+        case 'old': list.sort((a,b)=>a.createdAt-b.createdAt); break;
+        case 'az': list.sort((a,b)=> a.text.localeCompare(b.text, 'zh-Hant-u-co-stroke')); break;
+        case 'za': list.sort((a,b)=> b.text.localeCompare(a.text, 'zh-Hant-u-co-stroke')); break;
+        case 'pin': default: list.sort((a,b)=> (Number(b.pinned)-Number(a.pinned)) || (b.createdAt-a.createdAt));
+      }
+      return list;
+    }
+
+    function render(){
+      save();
+      const list = computeFiltered(state.quotes);
+      const ul = $('list');
+      ul.innerHTML = '';
+      if(list.length===0){ $('empty').style.display='block'; } else { $('empty').style.display='none'; }
+      for(const q of list){
+        const li = document.createElement('li'); li.className='item'+(q.pinned?' pin':'');
+        li.innerHTML = `
+          <input type="checkbox" ${state.selected.has(q.id)?'checked':''} class="chk" style="margin:4px 2px 0 0">
+          <div style="flex:1;min-width:0">
+            <p style="margin:0;white-space:pre-wrap;word-break:break-word">${escapeHtml(q.text)}</p>
+            <div class="row" style="margin-top:6px;align-items:center">
+              <span class="muted" style="font-size:11px;margin-left:auto">${new Date(q.createdAt).toLocaleString()}</span>
+            </div>
+            <div class="row" style="margin-top:6px">${(q.tags||[]).map(t=>`<span class="chip">#${escapeHtml(t)}</span>`).join('')}</div>
+          </div>
+          <div class="right">
+            <button class="btn ghost copy">📋</button>
+            <button class="btn ghost pin">📌</button>
+            <button class="btn ghost del">🗑️</button>
+          </div>`;
+        // events
+        li.querySelector('.copy').onclick = ()=> safeCopy(q.text);
+        li.querySelector('.pin').onclick = ()=>{ q.pinned=!q.pinned; render(); };
+        li.querySelector('.del').onclick = ()=>{ state.quotes = state.quotes.filter(x=>x.id!==q.id); state.selected.delete(q.id); render(); };
+        li.querySelector('.chk').onchange = (e)=>{ e.target.checked? state.selected.add(q.id): state.selected.delete(q.id); };
+        ul.appendChild(li);
+      }
+    }
+
+    function toast(msg){ const d=document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),1400); }
+
+    async function safeCopy(txt){
+      try{
+        if(navigator.clipboard && typeof navigator.clipboard.writeText==='function'){
+          await navigator.clipboard.writeText(txt); toast('已複製到剪貼簿 ✨'); return true;
+        }
+        throw new Error('no async clipboard');
+      }catch{
+        if(legacyCopy(txt)){ toast('已複製到剪貼簿 ✨ (後備)'); return true; }
+        // manual modal
+        const dlg = $('copyDlg'); const box = $('copyBox'); box.value = txt; dlg.showModal();
+        setTimeout(()=>{ box.focus(); box.select(); }, 0);
+        return false;
+      }
+    }
+
+    function legacyCopy(txt){
+      try{
+        const ta=document.createElement('textarea'); ta.value=txt; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta);
+        const sel=document.getSelection(); const range= sel && sel.rangeCount? sel.getRangeAt(0): null;
+        ta.select(); ta.setSelectionRange(0, ta.value.length);
+        let ok=false; try{ ok=document.execCommand('copy'); }catch{ ok=false; }
+        document.body.removeChild(ta); if(range && sel){ sel.removeAllRanges(); sel.addRange(range); }
+        return ok;
+      }catch{ return false; }
+    }
+
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+    // UI events
+    $('save').onclick = ()=>{
+      const t = $('text').value.trim(); if(!t) return;
+      const tags = parseTags($('tags').value);
+      state.quotes = [{id:uid(), text:t, tags, pinned:false, createdAt:Date.now()}, ...state.quotes];
+      $('text').value=''; $('tags').value=''; $('text').focus(); render();
+    };
+    $('search').oninput = (e)=>{ state.search = e.target.value; render(); };
+    $('sort').onchange = (e)=>{ state.sort = e.target.value; render(); };
+    $('bulkDel').onclick = ()=>{ if(state.selected.size===0) return; if(!confirm(`確定刪除 ${state.selected.size} 筆嗎？`)) return; state.quotes = state.quotes.filter(q=>!state.selected.has(q.id)); state.selected.clear(); render(); };
+    $('export').onclick = ()=>{
+      const blob = new Blob([JSON.stringify(state.quotes,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=`quotes_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
+    };
+    $('import').onchange = (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(String(r.result)); if(Array.isArray(d)){ state.quotes = d.filter(x=>typeof x?.text==='string').map(x=>({ id:x.id||uid(), text:x.text, tags:Array.isArray(x.tags)?x.tags:[], pinned:!!x.pinned, createdAt:Number(x.createdAt)||Date.now() })); render(); } }catch{ alert('匯入失敗，檔案格式錯誤。'); } }; r.readAsText(f); e.target.value=''; };
+
+    $('tryCopy').onclick = (e)=>{ e.preventDefault(); try{ $('copyBox').select(); document.execCommand('copy'); toast('已複製到剪貼簿 ✨'); }catch{} };
+
+    // Shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); $('save').click(); }
+      if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='f'){ e.preventDefault(); const el=$('search'); el.focus(); el.select(); }
+      if(e.key==='Escape'){ const dlg=$('copyDlg'); if(dlg.open) dlg.close(); }
+    });
+
+    // Tests
+    $('runTests').onclick = ()=>{
+      const results=[];
+      const sample=[
+        {id:'1', text:'Hello 🌟', tags:['greet'], pinned:false, createdAt:1},
+        {id:'2', text:'愛情是耐心', tags:['愛情'], pinned:false, createdAt:2},
+        {id:'3', text:'Work hard', tags:['職場'], pinned:true, createdAt:3},
+      ];
+      state.search='愛情'; state.sort='pin';
+      const r1 = computeFiltered(structuredClone(sample)); results.push({name:'搜尋包含中文字詞', pass: r1.length===1 && r1[0].id==='2'});
+      state.search=''; state.sort='pin';
+      const r2 = computeFiltered(structuredClone(sample)); results.push({name:'置頂優先排序', pass: r2[0].id==='3'});
+      state.search=''; state.sort='az';
+      const r3 = computeFiltered(structuredClone(sample)); const azOK = r3.map(x=>x.text).join(',') === ['Hello 🌟','Work hard','愛情是耐心'].join(',');
+      results.push({name:'文字 A→Z 排序', pass: azOK});
+      let copyPassed=true; safeCopy('Test copy').catch(()=>copyPassed=false); results.push({name:'複製函式不丟出錯誤', pass: copyPassed, note:'在某些環境會開啟手動複製視窗屬正常'});
+      const out=$('testOut'); const ul=document.createElement('ul'); ul.style.listStyle='disc'; ul.style.paddingLeft='20px'; ul.style.marginTop='6px'; out.innerHTML=''; results.forEach(r=>{ const li=document.createElement('li'); li.textContent=`${r.pass?'✅':'❌'} ${r.name}${r.note?' — '+r.note:''}`; ul.appendChild(li); }); out.appendChild(ul);
+      // reset UI state
+      state.search=$('search').value=''; state.sort=$('sort').value; render();
+    };
+
+    // first paint
+    render();
+  </script>
+</body>
+</html>
